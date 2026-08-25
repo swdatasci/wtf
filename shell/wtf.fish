@@ -103,8 +103,9 @@ end
 
 # ---------- key bindings ----------
 
-# Ctrl+Space (sends NUL / Ctrl+@)
-bind \c@ _wtf_fish_propose
+# Ctrl+Space (sends NUL / 0x00)
+# Fish does not support \c@ — use \0 for the NUL byte
+bind \0 _wtf_fish_propose
 
 # Alt+g fallback
 bind \eg _wtf_fish_propose
