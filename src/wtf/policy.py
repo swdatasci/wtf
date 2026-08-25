@@ -39,6 +39,10 @@ READ_ONLY_ALLOWLIST: frozenset[str] = frozenset({
     # containers (read-only)
     "docker",
     "kubectl",
+    # data plumbing (read-only)
+    "xargs", "tee", "yes", "timeout", "time", "watch", "basename",
+    "dirname", "realpath", "readlink", "rev", "tac", "nl", "expand",
+    "unexpand", "fold", "fmt", "pr", "tsort", "shuf",
     # help / type
     "man", "help", "type", "command",
 })
