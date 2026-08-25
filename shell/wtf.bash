@@ -57,7 +57,7 @@ _wtf_bash_propose() {
 
     # Optional last-command context
     if [[ -n "${_wtf_last_cmd:-}" ]]; then
-        args+=(--last-cmd "$_wtf_last_cmd" --last-exit "${_wtf_last_exit:-0}")
+        args+=(--last-command "$_wtf_last_cmd" --last-exit-code "${_wtf_last_exit:-0}")
     fi
 
     # Call wtf and capture output
@@ -101,8 +101,10 @@ _wtf_bash_propose() {
 
 # ---------- key bindings ----------
 
-# Ctrl+Space (sends NUL / Ctrl+@)
-bind -x '"\C-@":_wtf_bash_propose'
-
-# Alt+g fallback
-bind -x '"\eg":_wtf_bash_propose'
+# Only bind in interactive shells (bind -x requires readline)
+if [[ $- == *i* ]]; then
+    # Ctrl+Space (sends NUL / Ctrl+@)
+    bind -x '"\C-@":_wtf_bash_propose'
+    # Alt+g fallback
+    bind -x '"\eg":_wtf_bash_propose'
+fi

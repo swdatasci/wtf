@@ -62,6 +62,9 @@ def _build_parser() -> argparse.ArgumentParser:
                          help="Request timeout in seconds")
     propose.add_argument("--debug", action="store_true", default=False,
                          help="Print debug info to stderr")
+    propose.add_argument("--format", type=str, default="json",
+                         choices=("json", "shell"),
+                         help="Output format: json (default) or shell variables")
 
     # --- doctor ---
     sub.add_parser("doctor", help="Check system readiness")
@@ -79,6 +82,21 @@ def _build_parser() -> argparse.ArgumentParser:
                               help="Command to check (use -- before the command)")
 
     return parser
+
+
+def _shell_quote(s: str) -> str:
+    """Quote a string for safe shell variable assignment."""
+    return "'" + s.replace("'", "'\\''") + "'"
+
+
+def _emit_shell(response: dict[str, Any]) -> None:
+    """Print response as shell variable assignments."""
+    print(f"WTF_ACTION={_shell_quote(response.get('action', ''))}")
+    print(f"WTF_BUFFER={_shell_quote(response.get('buffer', ''))}")
+    cursor = len(response.get("buffer", ""))
+    print(f"WTF_CURSOR={cursor}")
+    summary = response.get("summary", "") or response.get("reason", "")
+    print(f"WTF_MESSAGE={_shell_quote(summary)}")
 
 
 def _cmd_propose(args: argparse.Namespace) -> int:
@@ -110,7 +128,10 @@ def _cmd_propose(args: argparse.Namespace) -> int:
             "risk": "high",
             "reason": str(exc),
         }
-        print(json.dumps(response))
+        if getattr(args, "format", "json") == "shell":
+            _emit_shell(response)
+        else:
+            print(json.dumps(response))
         return 1
 
     if args.debug:
@@ -139,7 +160,10 @@ def _cmd_propose(args: argparse.Namespace) -> int:
         elif policy_result["risk"] != "low":
             response["risk"] = policy_result["risk"]
 
-    print(json.dumps(response))
+    if getattr(args, "format", "json") == "shell":
+        _emit_shell(response)
+    else:
+        print(json.dumps(response))
     return 0
 
 

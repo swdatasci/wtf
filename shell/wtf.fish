@@ -46,7 +46,7 @@ function _wtf_fish_propose
 
     # Optional last-command context
     if test -n "$_wtf_last_cmd"
-        set -a args --last-cmd "$_wtf_last_cmd" --last-exit $_wtf_last_exit
+        set -a args --last-command "$_wtf_last_cmd" --last-exit-code $_wtf_last_exit
     end
 
     # Call wtf and capture output

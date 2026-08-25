@@ -53,7 +53,7 @@ wtf-zsh-propose() {
 
     # Optional last-command context
     if [[ -n "$_wtf_last_cmd" ]]; then
-        args+=(--last-cmd "$_wtf_last_cmd" --last-exit "$_wtf_last_exit")
+        args+=(--last-command "$_wtf_last_cmd" --last-exit-code "$_wtf_last_exit")
     fi
 
     # Call wtf and capture output
