@@ -1,27 +1,27 @@
 # wtf -- What's The Function?
 
-Local-first AI shell line editor augmentation. Ask what you want in plain
-English, get an editable command placed into your shell's line buffer.
-Nothing is executed.
+Local-first AI shell line editor augmentation. Type what you want in plain
+English, press a keybinding, and get an editable command placed into your
+shell's line buffer. Nothing is executed.
 
 ## What it does
 
 ```
-You type          wtf sees                  You get
------------       ----------------------    ----------------------------
-Ctrl+Space        prompt opens              "find large logs"
-                  Ollama (local, private)   -> proposal
-                  policy check              -> risk: low
-                  line buffer insert        $ find /var/log -type f -size +100M
-                                              ^--- cursor here, edit or Enter
+your prompt        wtf does                  you get
+-----------        ----------------------    ----------------------------
+$ # find large     reads your buffer         sends to local Ollama
+  logs             + cwd, shell, git info    <- structured JSON response
+                   policy check              <- risk: low
+[Ctrl+Space]       buffer replacement        $ find /var/log -type f -size +100M
+                                               ^--- edit or press Enter
 ```
 
-1. You press the keybinding (Ctrl+Space).
-2. You type natural language or a partial command.
-3. `wtf` sends your input plus narrow shell context to a local Ollama model.
+1. Type a natural-language comment or partial command at your normal prompt.
+2. Press Ctrl+Space (or Alt+G).
+3. wtf sends the buffer plus narrow shell context to a local Ollama model.
 4. A deterministic policy layer checks the proposal for dangerous patterns.
-5. The safe proposal is placed into your shell's line buffer for review.
-6. You edit or press Enter. You are always in control.
+5. The safe proposal replaces your line buffer. You can edit it.
+6. You press Enter to run it, or Ctrl+C to discard. You are always in control.
 
 ## What it does NOT do
 
@@ -59,39 +59,59 @@ ollama serve
 # Pull the default model
 ollama pull qwen2.5-coder:14b
 
-# Verify
+# Verify available models
 ollama list
 ```
 
-Any Ollama-compatible model works. Change the model in config (see below).
+Any Ollama-compatible model works. To use a different model (e.g. one you
+already have pulled):
+
+```bash
+mkdir -p ~/.config/wtf
+cat > ~/.config/wtf/config.toml << 'EOF'
+[provider]
+model = "gemma4:latest"
+EOF
+```
+
+Or pass it per-invocation: `wtf propose --model gemma4:latest ...`
 
 ## Shell setup
 
+Source the adapter for your shell. The adapters are plain scripts in the
+`shell/` directory of this repo.
+
 ### Bash
 
-Add to `~/.bashrc`:
-
 ```bash
-source "$(wtf shell bash)"
+# Try it now
+source /path/to/wtf/shell/wtf.bash
+
+# Make it permanent — add to ~/.bashrc
+source /path/to/wtf/shell/wtf.bash
 ```
 
-### Zsh
-
-Add to `~/.zshrc`:
+### Zsh (also works in fizsh)
 
 ```zsh
-source "$(wtf shell zsh)"
+# Try it now
+source /path/to/wtf/shell/wtf.zsh
+
+# Make it permanent — add to ~/.zshrc
+source /path/to/wtf/shell/wtf.zsh
 ```
 
 ### Fish
 
-Add to `~/.config/fish/config.fish`:
-
 ```fish
-wtf shell fish | source
+# Try it now
+source /path/to/wtf/shell/wtf.fish
+
+# Make it permanent — add to ~/.config/fish/config.fish
+source /path/to/wtf/shell/wtf.fish
 ```
 
-Restart your shell or source the rc file after adding the line.
+Replace `/path/to/wtf` with the actual path to this repository.
 
 ## Keybindings
 
@@ -101,24 +121,26 @@ Restart your shell or source the rc file after adding the line.
 | Alt+G       | Fallback for terminals where Ctrl+Space conflicts. |
 
 **tmux users:** Ctrl+Space may collide with the tmux prefix if you rebound it.
-Use Alt+G or rebind in your wtf config.
+Use Alt+G instead.
 
 **NUL byte:** Some terminals send NUL (0x00) for Ctrl+Space. The shell
-integration handles this, but if your terminal swallows it, use Alt+G.
+adapters handle this, but if your terminal swallows it, use Alt+G.
 
 ## Usage examples
 
 ### Natural language search
 
 ```
-[Ctrl+Space] find all python files modified in the last week
+$ # find all python files modified in the last week
+[Ctrl+Space]
 $ find . -name "*.py" -mtime -7
 ```
 
 ### Partial command expansion
 
 ```
-[Ctrl+Space] tar gz the src directory
+$ tar gz the src directory
+[Ctrl+Space]
 $ tar czf src.tar.gz src/
 ```
 
@@ -128,59 +150,70 @@ $ tar czf src.tar.gz src/
 $ git push orign main
 fatal: 'orign' does not appear to be a git repository
 
-[Ctrl+Space] fix that
+$ # fix that
+[Ctrl+Space]
 $ git push origin main
 ```
 
 ### Clarification
 
 ```
-[Ctrl+Space] delete everything
-wtf: refused (risk: high) -- mass deletion without explicit path
+$ # delete something
+[Ctrl+Space]
+$ # AI needs clarification: delete which files or directories?
 ```
 
 ### Destructive request refusal
 
 ```
-[Ctrl+Space] rm -rf /
-wtf: refused (risk: high) -- recursive root deletion
+$ # rm -rf /
+[Ctrl+Space]
+[wtf] refused: High-risk command: rm
 ```
 
 ## Configuration
 
 Config file: `~/.config/wtf/config.toml`
 
-Created on first run with defaults. All fields are optional.
+All fields are optional. Defaults are used for anything not specified.
 
 ```toml
-[ollama]
-url = "http://127.0.0.1:11434"
+[provider]
+kind = "ollama"
+base_url = "http://127.0.0.1:11434"
 model = "qwen2.5-coder:14b"
-timeout = 10                     # seconds
+timeout_seconds = 20
 
 [context]
-include_cwd = true
-include_last_exit = true
+include_git = true
 include_last_command = true
-max_history = 0                  # number of recent commands to include (0 = none)
+include_last_output = true
+max_last_output_bytes = 4096
 
 [policy]
-allow_sudo = false               # if false, proposals with sudo are risk: medium
-refuse_rm_rf = true              # hard-refuse recursive root deletion
-max_risk = "medium"              # "low", "medium", "high" -- ceiling for insertion
+mode = "enforce"                  # "enforce" or "off"
+allow_medium_risk_insert = false
+max_buffer_bytes = 8192
 
-[keybinding]
-primary = "\\C-@"                # Ctrl+Space
-fallback = "\\eg"                # Alt+G
+[ui]
+show_summary = true
 ```
+
+See `examples/sample-config.toml` for a fully commented example.
+
+Environment variables override the config file. Format: `WTF_SECTION_KEY`,
+e.g. `WTF_PROVIDER_MODEL=gemma4:latest`.
+
+CLI flags override everything:
+`wtf propose --model gemma4:latest --timeout 30 ...`
 
 ### Subcommands
 
 ```bash
-wtf propose "list disk usage by directory"   # one-shot, print to stdout
-wtf doctor                                    # check Ollama, model, shell integration
-wtf config show                               # print resolved config
-wtf policy check "rm -rf /"                   # show risk level for a command
+wtf propose --shell bash --cwd . --buffer "# list large files" --cursor 17
+wtf doctor                                     # check Ollama, model, Python
+wtf config show                                # print resolved config
+wtf policy check -- "rm -rf /"                 # show risk level for a command
 ```
 
 ## Security model
@@ -188,35 +221,35 @@ wtf policy check "rm -rf /"                   # show risk level for a command
 1. **Local-only.** All inference runs on your machine via Ollama. No network
    calls leave localhost.
 
-2. **Narrow context.** wtf sends only: your prompt, current directory,
-   last exit code, and (optionally) the last command. No env vars, no
-   secrets, no file contents.
+2. **Narrow context.** wtf sends only: your buffer text, current directory,
+   shell name, last exit code, and (optionally) the last command and git
+   metadata. No env vars, no secrets, no file contents.
 
-3. **No secrets in transit.** The Ollama connection is localhost HTTP.
-   No API keys are used or stored.
-
-4. **No auto-execution.** Proposals are placed into the line buffer.
+3. **No auto-execution.** Proposals are placed into the line buffer.
    You must press Enter to run them.
 
-5. **Deterministic policy layer.** After the model proposes a command, a
-   rule-based policy engine evaluates it:
-   - **low** -- safe to insert into the line buffer.
-   - **medium** -- inserted with a warning comment prepended.
-   - **high** -- refused entirely, never reaches the line buffer.
+4. **Deterministic policy layer.** After the model proposes a command, a
+   rule-based policy engine evaluates it independent of the model:
+   - **low** risk -- inserted into the line buffer.
+   - **medium** risk -- refused by default (enable with
+     `allow_medium_risk_insert = true`).
+   - **high** risk -- always refused, never reaches the line buffer.
 
-   The policy layer is deterministic and does not depend on the model.
-   It cannot be prompt-injected.
+   The policy layer is deterministic and cannot be prompt-injected.
 
 ## Troubleshooting
 
 ### wtf doctor
 
-Run `wtf doctor` to check your setup. It verifies:
+Run `wtf doctor` to check your setup:
 
-- Ollama is reachable at the configured URL
-- The configured model is pulled and available
-- Shell integration is sourced in the current shell
-- Config file parses without errors
+```
+$ wtf doctor
+[ok] Python version: 3.13.5
+[ok] Ollama: Ollama is reachable
+[ok] Model 'gemma4:latest' is available
+[ok] JSON generation test passed
+```
 
 ### Common issues
 
@@ -225,32 +258,30 @@ Ollama is not running. Start it with `ollama serve`.
 
 **"Model not found"**
 Pull the model: `ollama pull qwen2.5-coder:14b` (or your configured model).
+Check what you have: `ollama list`.
 
 **Ctrl+Space does nothing**
-- Verify shell integration is sourced: check your rc file.
+- Verify shell adapter is sourced: `source /path/to/shell/wtf.bash`
 - Try Alt+G as a fallback.
 - In tmux, check for prefix key conflicts.
-- Run `wtf doctor` to confirm integration is loaded.
 
 **Proposals are slow**
-The default model (qwen2.5-coder:14b) needs ~10GB VRAM. If you're running on
-CPU, try a smaller model: `qwen2.5-coder:7b` or `qwen2.5-coder:3b`.
+The default model (qwen2.5-coder:14b) needs ~10GB VRAM. If running on CPU,
+try a smaller model: `qwen2.5-coder:7b` or `qwen2.5-coder:3b`.
 
 **Policy refuses a legitimate command**
-Check the risk ceiling in config (`policy.max_risk`). Run
-`wtf policy check "<command>"` to see why it was flagged.
+Check what triggered it: `wtf policy check -- "your command here"`.
+Enable medium-risk insertion in config if needed.
 
 ## Dogfood checklist
 
-- [ ] Ctrl+Space opens the prompt in bash, zsh, fish
-- [ ] Natural language input produces a reasonable command
+- [ ] Shell adapter sources without errors in bash, zsh, fish
+- [ ] Type `# question`, then Ctrl+Space produces a reasonable command
 - [ ] Proposed command lands in the line buffer, cursor ready to edit
 - [ ] `rm -rf /` is refused (risk: high)
-- [ ] `sudo rm -rf /tmp/junk` is flagged (risk: medium with allow_sudo=false)
 - [ ] `ls -la` is inserted cleanly (risk: low)
 - [ ] `wtf doctor` reports all-clear on a working setup
 - [ ] `wtf propose` works as a one-shot CLI tool (no shell integration needed)
-- [ ] Config changes take effect without restart
 - [ ] Works with no config file (defaults apply)
 
 ## License
